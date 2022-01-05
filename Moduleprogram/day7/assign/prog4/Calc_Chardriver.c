@@ -62,6 +62,37 @@ ssize_t char_dev_read(struct file *filp, char __user *buff, size_t count, loff_t
 
 ssize_t char_dev_write(struct file *filp, const char __user *buff,size_t count, loff_t *f_pos)
 {
+    unsigned long int res;
+    ssize_t retval;
+    int Ubuff[0];
+    int Ubuff[1];
+    char Kbuff[100];
+    int add;
+
+    printk(KERN_ALERT "In Write sys call\n");
+    res=copy_from_user((char*)Kbuff,(char*)Ubuff,count);
+    if(res==0)
+    {
+        printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
+        printk(KERN_INFO "\n--data received successfully--\n");
+        retval=count;
+        return retval;
+    }
+    else if(res>0)
+    {
+        printk(KERN_ALERT "\n--msg from user--\n--%s--\n",Kbuff);
+        printk(KERN_ALERT "\n the data is partially received\n");
+        retval=(count-res);
+        return retval;
+    }
+    else
+    {
+        printk(KERN_ALERT "\nError in writing\n");
+        retval=-EFAULT;
+        return retval;
+    }
+    add=Ubuff[0]+Ubuff[1];
+    printk(KERN_ALERT "add=%d",add);
     return 0;
 }
 /* file operations of the driver */

@@ -1,16 +1,16 @@
- obj-m := Calc_Chardriver.o
+ obj-m := chardriver.o
  KDIR = /lib/modules/$(shell uname -r)/build/
  PWD = $(shell pwd)
 
 default:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
-	gcc -o add add.c
-	
+	gcc -o read read.c
+	gcc -o write write.c
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(PWD) clean
-	rm add
-	
+	rm read
+	rm write
 
 install:
 	$(MKAE) -C $(KDIR) M=$(PWD) modules_install

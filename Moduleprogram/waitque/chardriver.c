@@ -12,9 +12,9 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Hanumanthu");
 
-wait_queue_head_t wait_queue_etx;
+wait_queue_head_t wq;
 dev_t Mydev; //global declaration
-int wait_queue_flag = 0;
+//int wait_queue_flag = 0;
 
 //fun prototypes
 int NAME_open(struct inode *inode, struct file *filp);
@@ -62,12 +62,12 @@ static int __init charDev_init(void)
         return(-1);
     }
      //Initialize wait queue
-    init_waitqueue_head(&wait_queue_etx);
+    init_waitqueue_head(&wq);
     return 0;
 }
 
 //exiting the module
-void __exit charDev_exit(void)
+static void __exit charDev_exit(void)
 {
     printk(KERN_ALERT "exit the module\n");
     unregister_chrdev_region(Mydev,1); //to unregister the device num and device
@@ -75,6 +75,8 @@ void __exit charDev_exit(void)
     printk("\ncleaning the resources\n");
     return;
 }
+int size_kbuff=0;
+char Kbuff[50];
 
 //system calls
 int NAME_open(struct inode *inode, struct file *filp)
@@ -85,21 +87,16 @@ int NAME_open(struct inode *inode, struct file *filp)
 
 ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *offp)
 {
-    while(1)
-    {
-        printk(KERN_ALERT "Waiting For Event...\n");
-        wait_event_interruptible(wait_queue_etx, wait_queue_flag != 0 );
-        if(wait_queue_flag == 2) 
-        {
-            printk(KERN_ALERT "Event Came From Exit Function\n");
-            return 0;
-        }
     
     unsigned long int res;
     ssize_t retval;
-    char Kbuff[100]="Hey, I am Kernel";
+    //char Kbuff[100]="Hey, I am Kernel";
+    if(size_kbuff==0)
+    {
+        wait_event(wq,size_kbuff>0);
+    }
 
-    printk(KERN_ALERT "In Read sys call\n");
+    //printk(KERN_ALERT "In Read sys call\n");
     //wait_event_interruptible(wait_queue_etx,wait_queue_flag!=0);
     res=copy_to_user((char*)Ubuff,(char*)Kbuff,count);
     if(res==0)
@@ -124,17 +121,19 @@ ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *o
     }
     }
     //printk(KERN_ALERT "Event Came From write Function - %d\n", ++read_count);
-    wait_queue_flag = 0;
-}
+    //wait_queue_flag = 0;
+
 
 ssize_t NAME_write(struct file *filp,const char __user *Ubuff, size_t count, loff_t *offp)
 {
     unsigned long int res;
     ssize_t retval;
-    char Kbuff[100];
+    //char Kbuff[100];
 
-    printk(KERN_ALERT "In Write sys call\n");
+  //  printk(KERN_ALERT "In Write sys call\n");
     res=copy_from_user((char*)Kbuff,(char*)Ubuff,count);
+    size_kbuff=(count-res);
+    wake_up(&wq);
     if(res==0)
     {
         printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
@@ -155,7 +154,7 @@ ssize_t NAME_write(struct file *filp,const char __user *Ubuff, size_t count, lof
         retval=-EFAULT;
         return retval;
     }
-    wake_up_interruptible(&wait_queue_etx);
+    //wake_up_interruptible(&wait_queue_etx);
 
 
 }

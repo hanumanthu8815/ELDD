@@ -1,22 +1,22 @@
-/* 2. Writwe a character driver with open, read, write, and close functionalities
-  Test the driver through a user application by  reading data from the driver
-  and writing data to the driver.   */
-
- #include<linux/init.h>
+#include<linux/init.h>
 #include<linux/module.h>
 #include<linux/kdev_t.h>
 #include<linux/types.h>
 #include<linux/fs.h>
 #include<linux/cdev.h>
 #include<linux/uaccess.h>
+//#include<linux/semaphore.h>
 
-#define NAME mydevice2
+#define NAME sema_device
+char Kbuff[100];
+
+struct semaphore semph1,semph2;
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Hanumanthu");
 
 dev_t Mydev; //global declaration
-spinlock_t slock;
+
 //fun prototypes
 int NAME_open(struct inode *inode, struct file *filp);
 ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *offp);
@@ -34,18 +34,18 @@ struct file_operations fops=
 };
 
 struct cdev *my_cdev; //structure for char driver
-char Kbuff[100];
+
 //initialisation
 static int __init charDev_init(void)
 {
     int res;
     int MAJOR, MINOR;
-    Mydev = MKDEV(15,0); //will create Dev num
+    Mydev = MKDEV(255,0); //will create Dev num
     MAJOR=MAJOR(Mydev);
     MINOR=MINOR(Mydev);
     printk(KERN_ALERT "initialization of mychardev\n");
     printk("the major num is %d   the minor num is %d\n",MAJOR,MINOR);
-    res=register_chrdev_region(Mydev,1,"mydevice2"); //for registring the device
+    res=register_chrdev_region(Mydev,1,"sema_device"); //for registring the device
     if(res<0)
     {
         printk(KERN_ALERT "\nregion is not there|n");
@@ -62,13 +62,19 @@ static int __init charDev_init(void)
         unregister_chrdev_region(Mydev,1);
         return(-1);
     }
-    spin_lock_init(&slock);
+    sema_init(&semph1, 1);
+    sema_init(&semph2, 1); // Dynamically initialising the semaphore
+
     return 0;
 }
 
 //exiting the module
 void __exit charDev_exit(void)
 {
+    int MAJOR, MINOR;
+    Mydev = MKDEV(255, 0); // Statically creating a device number
+    MAJOR = MAJOR(Mydev);
+    MINOR = MINOR(Mydev);
     printk(KERN_ALERT "exit the module\n");
     unregister_chrdev_region(Mydev,1); //to unregister the device num and device
     cdev_del(my_cdev);
@@ -85,17 +91,19 @@ int NAME_open(struct inode *inode, struct file *filp)
 
 ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *offp)
 {
+    down(&semph2);
     unsigned long int res;
     ssize_t retval;
-    ///char Kbuff[100]="Hey, I am Kernel";
+    //char Kbuff[100]="Hey, I am Kernel";
 
     printk(KERN_ALERT "In Read sys call\n");
-    spin_lock(&slock);
     res=copy_to_user((char*)Ubuff,(char*)Kbuff,count);
-    spin_unlock(&slock);
+    up(&semph1);
+    printk("releasing semaphore 1\n");
+    printk("releasing semaphore\n");
     if(res==0)
     {
-        //printk(KERN_ALERT "\n--message to user--\n--%s--\n",Kbuff);
+        printk(KERN_ALERT "\n--message to user--\n--%s--\n",Kbuff);
         printk(KERN_INFO "\n--data read successfully--\n");
         retval=count;
         return retval;
@@ -113,22 +121,22 @@ ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *o
         retval=-EFAULT;
         return retval;
     }
-    //spin_unlock(&slock);
 }
 
 ssize_t NAME_write(struct file *filp,const char __user *Ubuff, size_t count, loff_t *offp)
 {
+    down(&semph1);
     unsigned long int res;
     ssize_t retval;
-    //char Kbuff[100];
+   // char Kbuff[100];
 
     printk(KERN_ALERT "In Write sys call\n");
-    spin_lock(&slock);
     res=copy_from_user((char*)Kbuff,(char*)Ubuff,count);
-    spin_unlock(&slock);
+    up(&semph2);
+    printk("releasing semaphore 2\n");
     if(res==0)
     {
-        //printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
+        printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
         printk(KERN_INFO "\n--data received successfully--\n");
         retval=count;
         return retval;
@@ -146,7 +154,6 @@ ssize_t NAME_write(struct file *filp,const char __user *Ubuff, size_t count, lof
         retval=-EFAULT;
         return retval;
     }
-    //spin_unlock(&slock);
 
 }
 

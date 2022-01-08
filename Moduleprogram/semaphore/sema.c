@@ -11,12 +11,15 @@
 #include<linux/uaccess.h>
 
 #define NAME mydevice2
+char Kbuff[100];
+
+struct semaphore semph;
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Hanumanthu");
 
 dev_t Mydev; //global declaration
-spinlock_t slock;
+
 //fun prototypes
 int NAME_open(struct inode *inode, struct file *filp);
 ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *offp);
@@ -34,7 +37,7 @@ struct file_operations fops=
 };
 
 struct cdev *my_cdev; //structure for char driver
-char Kbuff[100];
+
 //initialisation
 static int __init charDev_init(void)
 {
@@ -62,7 +65,8 @@ static int __init charDev_init(void)
         unregister_chrdev_region(Mydev,1);
         return(-1);
     }
-    spin_lock_init(&slock);
+    sema_init(&semph, 1); // Dynamically initialising the semaphore
+
     return 0;
 }
 
@@ -87,15 +91,15 @@ ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *o
 {
     unsigned long int res;
     ssize_t retval;
-    ///char Kbuff[100]="Hey, I am Kernel";
+    //char Kbuff[100]="Hey, I am Kernel";
 
     printk(KERN_ALERT "In Read sys call\n");
-    spin_lock(&slock);
     res=copy_to_user((char*)Ubuff,(char*)Kbuff,count);
-    spin_unlock(&slock);
+    up(&semph);
+    printk("releasing semaphore\n");
     if(res==0)
     {
-        //printk(KERN_ALERT "\n--message to user--\n--%s--\n",Kbuff);
+        printk(KERN_ALERT "\n--message to user--\n--%s--\n",Kbuff);
         printk(KERN_INFO "\n--data read successfully--\n");
         retval=count;
         return retval;
@@ -113,22 +117,20 @@ ssize_t NAME_read(struct file *filp, char __user *Ubuff, size_t count, loff_t *o
         retval=-EFAULT;
         return retval;
     }
-    //spin_unlock(&slock);
 }
 
 ssize_t NAME_write(struct file *filp,const char __user *Ubuff, size_t count, loff_t *offp)
 {
+    down(&semph);
     unsigned long int res;
     ssize_t retval;
-    //char Kbuff[100];
+   // char Kbuff[100];
 
     printk(KERN_ALERT "In Write sys call\n");
-    spin_lock(&slock);
     res=copy_from_user((char*)Kbuff,(char*)Ubuff,count);
-    spin_unlock(&slock);
     if(res==0)
     {
-        //printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
+        printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
         printk(KERN_INFO "\n--data received successfully--\n");
         retval=count;
         return retval;
@@ -146,7 +148,6 @@ ssize_t NAME_write(struct file *filp,const char __user *Ubuff, size_t count, lof
         retval=-EFAULT;
         return retval;
     }
-    //spin_unlock(&slock);
 
 }
 

@@ -1,1 +1,0 @@
-cmd_/home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/modules.order := {   echo /home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/Calc_Chardriver.ko; :; } | awk '!x[$$0]++' - > /home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/modules.order

@@ -1,1 +1,0 @@
-cmd_/home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/Calc_Chardriver.mod := { echo  /home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/Calc_Chardriver.o;  echo; } > /home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/Calc_Chardriver.mod

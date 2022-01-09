@@ -8,9 +8,9 @@
 int main()
 {
     int fd;
-    int arr[2]={10,20};
+    int arr[2]={10,5};
     int res=0;
-    fd=open("/dev/ADD",O_RDWR);
+    fd=open("/dev/DIV",O_RDWR);
     if(fd<0)
     {
         printf("ERROR IN ADDING OPENING..\n");

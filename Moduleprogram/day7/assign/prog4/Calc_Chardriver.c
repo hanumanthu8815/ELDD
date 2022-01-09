@@ -1,182 +1,299 @@
+// calculator program with addition ,sun=btraction,multiplication and division
+
+#include<linux/init.h>
 #include<linux/module.h>
-#include<linux/fs.h>
+#include<linux/kernel.h>
 #include<linux/cdev.h>
-#include<linux/device.h>
 #include<linux/kdev_t.h>
+#include<linux/fs.h>
+#include<linux/types.h>
+#include<linux/uaccess.h>
+#include "calculator.h"
 
-#define NO_OF_DEVICES 4
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Hanumanthu");
 
-/* Device private data structure */
-struct char_dev_private_data
-{   
-    const char *name;
-    struct cdev cdev;
+//static size_t arr_index=0;
+int buffer[2];
+
+static struct file_operations fops={
+    .owner     =    THIS_MODULE,
+    .open      =    cal_open,
+    .release   =    cal_release,
+    .read      =    add_read,
+    .write     =    add_write,
 };
-/* Drivers private data structure */
-struct char_drv_private_data
-{
-    int total_devices;
-    dev_t device_number;
-    struct class *class_char_dev;
-    struct device *device_char_dev;
-    struct char_dev_private_data
-    char_dev_data[NO_OF_DEVICES];
-};
 
-struct char_drv_private_data char_drv_data = 
-{
-    .total_devices = NO_OF_DEVICES,
-    .char_dev_data = {
-    [0] = {.name = "ADD"},
-    [1] = {.name = "SUB"},
-    [2] = {.name = "MUL"},
-    [3] = {.name = "DIV"}
-    }
-};
-int char_dev_open(struct inode *inode, struct file *filp)
-{
-    int minor;
-    struct char_dev_private_data *char_dev_data;
-/*find out on which device file open was attempted by the
-user space*/
-    minor = MINOR(inode->i_rdev);
-    pr_info("Minor access = %d\n",minor);
-/*get device's private data structure*/
-    char_dev_data = container_of(inode->i_cdev,struct
-    char_dev_private_data,cdev);
-/*to supply device private data to other methods of the
-driver*/
-    filp->private_data = char_dev_data;
-    pr_info("open was successful\n");
-    return 0;
-}
-int char_dev_release(struct inode *inode, struct file *filp)
-{
-    pr_info("release was successful\n");
-    return 0;
-}
-ssize_t char_dev_read(struct file *filp, char __user *buff, size_t count, loff_t *f_pos)
-{
-    return 0;
-}
 
-ssize_t char_dev_write(struct file *filp, const char __user *buff,size_t count, loff_t *f_pos)
-{
-    unsigned long int res;
-    ssize_t retval;
-    int Ubuff[0];
-    int Ubuff[1];
-    char Kbuff[100];
-    int add;
+// init function
 
-    printk(KERN_ALERT "In Write sys call\n");
-    res=copy_from_user((char*)Kbuff,(char*)Ubuff,count);
-    if(res==0)
+static int __init prog_init(void)
+{
+    int ret;
+    size_t i,j;
+    drv_data.device_number=MKDEV(255,0);
+    ret=register_chrdev_region(drv_data.device_number,4,"calculator");
+    if(ret<0)
     {
-        printk(KERN_ALERT "\n--message from user--\n--%s--\n",Kbuff);
-        printk(KERN_INFO "\n--data received successfully--\n");
+        printk("\n cannot allocated device number..!\n");
+        return -1;
+    }
+    i=0;
+    while(i<4)
+    {
+        printk(KERN_INFO "\n device number <major> : <minor> %d:%d\n",MAJOR(drv_data.device_number+i),MINOR(drv_data.device_number+i));
+
+
+        cdev_init(&drv_data.dev_data[i].cdev,&fops);
+
+        if(cdev_add(&drv_data.dev_data[i].cdev,drv_data.device_number+i,1)<0)
+        {
+            j=0;
+            while(j<i)
+            {
+                unregister_chrdev_region(drv_data.device_number+j,1);
+                return -1;
+            }
+            
+        }
+        printk("\n DRIVER LOADED..\n");
+        i++;
+    }
+    return 0;
+}
+static void __exit prog_exit(void)
+{
+    size_t i;
+    unregister_chrdev_region(drv_data.device_number,4);
+    i=0;
+    while(i<4)
+    {
+        cdev_del(&drv_data.dev_data[i].cdev);
+        i++;
+    }
+    printk("\n DRIVER UNLOADED..\n");
+}
+
+module_init(prog_init);
+module_exit(prog_exit);
+
+
+static int cal_open(struct inode *inode,struct file *filp)
+{
+    unsigned int minor_num;
+    printk("\n OPEN CALL..\n");
+
+    //find which device is opened with minor number
+    minor_num=MINOR(inode -> i_rdev);
+    printk("\n minor number for which driver invoked..%d\n",minor_num);
+
+    struct file_operations *new_fops=filp->f_op;
+
+//    printk("FUNCTION POINTERS %p and %p \n",new_fops->write,new_fops->read);
+    switch(minor_num)
+    {
+        case 1:
+            new_fops->write=sub_write;
+            new_fops->read=sub_read;
+            break;
+        case 2:
+            new_fops->write=mul_write;
+            new_fops->read=mul_read;
+            break;
+        case 3:
+            new_fops->write=div_write;
+            new_fops->read=div_read;
+            break;
+        default:
+            break;
+
+    }
+    return 0;
+}
+static ssize_t add_write(struct file *filp,const char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    unsigned long result=0;
+
+    result=copy_from_user(buffer,(int*)buf,count);
+    if(result==0)
+    {
+        printk("\n wriiten successfully.\n");
         retval=count;
         return retval;
     }
-    else if(res>0)
+    else if(result>0)
     {
-        printk(KERN_ALERT "\n--msg from user--\n--%s--\n",Kbuff);
-        printk(KERN_ALERT "\n the data is partially received\n");
-        retval=(count-res);
+        retval=count-result;
         return retval;
     }
-    else
+    printk("\nerror writing data\n");
+    return retval;
+}
+static ssize_t add_read(struct file *filp,char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    int add=0;
+    unsigned long result;
+    
+    printk("\n kernel add read call\n");
+    printk("\n 1st operand & 2nd operand in read %d %d \n",buffer[0],buffer[1]);
+    add=buffer[0]+buffer[1];
+
+    result=copy_to_user(buf,&add,count);
+    printk("copied buffer %s\n",buf);
+
+    if(result==0)
     {
-        printk(KERN_ALERT "\nError in writing\n");
-        retval=-EFAULT;
+        retval=count;
+    }
+    else if(result>0)
+    {
+        retval=count-result;
+    }
+    return retval;
+}
+
+//subtraction
+static ssize_t sub_write(struct file *filp,const char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    unsigned long result=0;
+
+    result=copy_from_user(buffer,(int*)buf,count);
+    if(result==0)
+    {
+        printk("\n wriiten successfully.\n");
+        retval=count;
         return retval;
     }
-    add=Ubuff[0]+Ubuff[1];
-    printk(KERN_ALERT "add=%d",add);
+    else if(result>0)
+    {
+        retval=count-result;
+        return retval;
+    }
+    printk("\nerror writing data\n");
+    return retval;
+}
+static ssize_t sub_read(struct file *filp,char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    int sub=0;
+    unsigned long result;
+    
+    printk("\n kernel add read call\n");
+    printk("\n 1st operand & 2nd operand in read %d %d \n",buffer[0],buffer[1]);
+    sub=buffer[0]-buffer[1];
+
+    result=copy_to_user(buf,&sub,count);
+    printk("copied buffer %s\n",buf);
+
+    if(result==0)
+    {
+        retval=count;
+    }
+    else if(result>0)
+    {
+        retval=count-result;
+    }
+    return retval;
+}
+
+//multiplication
+
+static ssize_t mul_write(struct file *filp,const char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    unsigned long result=0;
+
+    result=copy_from_user(buffer,(int*)buf,count);
+    if(result==0)
+    {
+        printk("\n wriiten successfully.\n");
+        retval=count;
+        return retval;
+    }
+    else if(result>0)
+    {
+        retval=count-result;
+        return retval;
+    }
+    printk("\nerror writing data\n");
+    return retval;
+}
+static ssize_t mul_read(struct file *filp,char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    int mul=0;
+    unsigned long result;
+    
+    printk("\n kernel add read call\n");
+    printk("\n 1st operand & 2nd operand in read %d %d \n",buffer[0],buffer[1]);
+    mul=(buffer[0])*(buffer[1]);
+
+    result=copy_to_user(buf,&mul,count);
+    printk("copied buffer %s\n",buf);
+
+    if(result==0)
+    {
+        retval=count;
+    }
+    else if(result>0)
+    {
+        retval=count-result;
+    }
+    return retval;
+}
+
+
+//division
+
+static ssize_t div_write(struct file *filp,const char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    unsigned long result=0;
+
+    result=copy_from_user(buffer,(int*)buf,count);
+    if(result==0)
+    {
+        printk("\n wriiten successfully.\n");
+        retval=count;
+        return retval;
+    }
+    else if(result>0)
+    {
+        retval=count-result;
+        return retval;
+    }
+    printk("\nerror writing data\n");
+    return retval;
+}
+static ssize_t div_read(struct file *filp,char *buf,size_t count,loff_t *off)
+{
+    ssize_t retval=-1;
+    int div=0;
+    unsigned long result;
+    
+    printk("\n kernel add read call\n");
+    printk("\n 1st operand & 2nd operand in read %d %d \n",buffer[0],buffer[1]);
+    div=(buffer[0])/(buffer[1]);
+
+    result=copy_to_user(buf,&div,count);
+    printk("copied buffer %s\n",buf);
+
+    if(result==0)
+    {
+        retval=count;
+    }
+    else if(result>0)
+    {
+        retval=count-result;
+    }
+    return retval;
+}
+
+static int cal_release(struct inode *inode,struct file *filp)
+{
+    printk("\n CLOSE CALL.\n");
     return 0;
 }
-/* file operations of the driver */
-struct file_operations char_dev_fops=
-{
-    .open = char_dev_open,
-    .release = char_dev_release,
-    .read = char_dev_read,
-    .write = char_dev_write,
-    .owner = THIS_MODULE
-};
-static int __init char_drv_init(void)
-{
-    int ret;
-    int i;
-/*Dynamically allocate  device numbers */
-    ret = alloc_chrdev_region(&char_drv_data.device_number,0,NO_OF_DEVICES,"calculator");
-    if(ret < 0)
-    {
-        pr_err("Alloc chrdev failed\n");
-        goto out;
-    }
-
-/*create device class under /sys/class/ */
-    char_drv_data.class_char_dev = class_create(THIS_MODULE,"calculator_class");
-    if(IS_ERR(char_drv_data.class_char_dev))
-    {
-        pr_err("Class creation failed\n");
-        ret = PTR_ERR(char_drv_data.class_char_dev);
-        goto unreg_chrdev;
-    }
-    for(i = 0 ; i < NO_OF_DEVICES ; i++)
-    {
-        pr_info("Device number <major>:<minor> =%d:%d\n",MAJOR(char_drv_data.device_number+i),MINOR(char_drv_data.device_number+i));
-/*Initialize the cdev structure with fops*/
-        cdev_init(&char_drv_data.char_dev_data[i].cdev,&char_dev_fops);
-/*  Register a device (cdev structure) with VFS */
-        char_drv_data.char_dev_data[i].cdev.owner =THIS_MODULE;
-        ret =cdev_add(&char_drv_data.char_dev_data[i].cdev,char_drv_data.device_number+i,1);
-        if(ret < 0)
-        {
-            pr_err("Cdev add failed\n");
-            goto cdev_del;
-        }
-/*populate the sysfs with device information */
-        char_drv_data.device_char_dev = device_create(char_drv_data.class_char_dev,NULL,char_drv_data.device_number+i,NULL,"dev-%d",i+1);
-        if(IS_ERR(char_drv_data.device_char_dev))
-        {
-            pr_err("Device create failed\n");
-            ret = PTR_ERR(char_drv_data.device_char_dev);
-            goto class_del;
-        }
-    }
-    pr_info("Module init was successful\n");
-    return 0;
-cdev_del:
-class_del:
-    for(;i>=0;i--)
-    {
-        device_destroy(char_drv_data.class_char_dev,char_drv_data.device_number+i);
-        cdev_del(&char_drv_data.char_dev_data[i].cdev);
-    }
-    class_destroy(char_drv_data.class_char_dev);
-    unreg_chrdev:
-
-    unregister_chrdev_region(char_drv_data.device_number,NO_OF_DEVICES);
-out:
-    return ret;
-}
-static void __exit char_drv_cleanup(void)
-{
-    int i;
-    for(i=0;i<NO_OF_DEVICES;i++)
-    {
-        device_destroy(char_drv_data.class_char_dev,char_drv_data.device_number+i);
-        cdev_del(&char_drv_data.char_dev_data[i].cdev);
-    }
-    class_destroy(char_drv_data.class_char_dev);
-    unregister_chrdev_region(char_drv_data.device_number,NO_OF_DEVICES);
-    pr_info("module unloaded\n");
-}
-module_init(char_drv_init);
-module_exit(char_drv_cleanup);
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("PRASAD - NISSI");
-MODULE_DESCRIPTION("A character driver which handles n devices");
-

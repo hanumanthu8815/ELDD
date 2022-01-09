@@ -1,0 +1,1 @@
+cmd_/home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/Module.symvers := sed 's/ko$$/o/' /home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/modules.order | scripts/mod/modpost -m -a   -o /home/ubuntu/Desktop/ELDD/Moduleprogram/day7/assign/prog4/Module.symvers -e -i Module.symvers   -T -
